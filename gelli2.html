@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Garanții Geeli</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .a4-page { width: 210mm; min-height: 297mm; padding: 15mm; margin: auto; background: white; color: black; box-shadow: 0 0 20px rgba(0,0,0,0.1); position: relative; }
+        
+       @media print { 
+    .no-print { display: none !important; } 
+    body { background: white !important; margin: 0; padding: 0; }
+    #modal-view { 
+        position: absolute; top: 0; left: 0; 
+        background: white !important; display: block !important; 
+        overflow: visible !important; width: 100%;
+    }
+    .a4-page { 
+        box-shadow: none; margin: 0; border: none; 
+        width: 210mm; height: 296mm; /* Forțăm înălțimea fixă */
+        padding: 8mm !important; /* Reducem marginea interioară de la 15mm */
+        overflow: hidden; /* Împiedică scurgerea pe pagina 2 */
+    }
+    #app-section, #auth-section { display: none !important; }
+    
+    /* Forțăm ajustarea conținutului */
+    #v-render-area { height: 100%; display: flex; flex-direction: column; }
+}
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100">
+
+    <div id="auth-section" class="min-h-screen flex items-center justify-center p-4 no-print">
+        <div class="bg-white text-slate-900 p-8 rounded-2xl shadow-2xl w-full max-w-md border-t-8 border-blue-600">
+            <h2 class="text-3xl font-black mb-6 text-center italic text-blue-600 tracking-tighter uppercase">Geeli Service</h2>
+            <div id="login-form" class="space-y-4">
+                <input type="text" id="l-user" placeholder="Utilizator" class="w-full p-3 border-2 border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-semibold">
+                <input type="password" id="l-pass" placeholder="Parolă" class="w-full p-3 border-2 border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-semibold">
+                
+                <div class="flex items-center gap-2 px-1">
+                    <input type="checkbox" id="l-remember" class="w-4 h-4 cursor-pointer">
+                    <label for="l-remember" class="text-sm font-bold text-slate-600 cursor-pointer select-none">Rămâi logat pe acest dispozitiv</label>
+                </div>
+
+                <button onclick="handleLogin()" class="w-full bg-blue-600 text-white p-4 rounded-xl font-black hover:bg-blue-700 transition tracking-wide">CONECTARE</button>
+                <div class="text-center pt-2">
+                    <button onclick="showAuth('reg')" class="text-blue-600 text-sm font-bold hover:underline">Înregistrare cont nou</button>
+                </div>
+            </div>
+            <div id="reg-form" class="hidden space-y-3">
+                <input type="text" id="r-full" placeholder="Nume Complet" class="w-full p-3 border-2 border-slate-200 rounded-lg">
+                <input type="text" id="r-user" placeholder="Username" class="w-full p-3 border-2 border-slate-200 rounded-lg">
+                <input type="password" id="r-pass" placeholder="Parolă" class="w-full p-3 border-2 border-slate-200 rounded-lg">
+                <select id="r-service" class="w-full p-3 border-2 border-slate-200 rounded-lg font-bold bg-slate-50">
+                    <option value="Propriu">1. Service Propriu</option>
+                    <option value="Colaborator 2">2. Colaborator 2</option>
+                    <option value="Colaborator 3">3. Colaborator 3</option>
+                    <option value="Colaborator 4">4. Colaborator 4</option>
+                    <option value="Colaborator 5">5. Colaborator 5</option>
+                    <option value="Colaborator 6">6. Colaborator 6</option>
+                    <option value="Colaborator 7">7. Colaborator 7</option>
+                </select>
+                <button onclick="handleRegister()" class="w-full bg-green-600 text-white p-4 rounded-xl font-black uppercase">Creare Cont</button>
+                <button onclick="showAuth('login')" class="w-full text-sm text-slate-500 font-bold mt-2">Înapoi la logare</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-section" class="hidden min-h-screen flex flex-col bg-slate-100 text-slate-900 no-print">
+        <nav class="bg-slate-800 text-white p-0 flex justify-between items-center shadow-lg">
+            <img src="https://i.ibb.co/6cM58dZH/20260302-184450.png" alt="Logo" class="h-16 object-contain">
+            
+            <div class="flex items-center gap-4">
+                <div class="text-right leading-none">
+                    <p id="nav-user-name" class="font-extrabold text-sm"></p>
+                    <p id="nav-user-info" class="text-[10px] text-blue-400 font-black uppercase tracking-widest"></p>
+                </div>
+                <button onclick="handleLogout()" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-black text-xs transition">IEȘIRE</button>
+            </div>
+        </nav>
+
+        <div class="bg-white border-b-2 flex shadow-sm" id="main-nav">
+            <button onclick="switchTab('tab-list')" id="btn-list" class="px-8 py-4 font-black border-b-4 border-blue-600 text-blue-600">LISTĂ FIȘE</button>
+            <button onclick="switchTab('tab-add')" id="btn-add" class="hidden px-8 py-4 font-black text-slate-500 hover:text-blue-600 transition">ADĂUGARE / EDITARE FIȘĂ</button>
+            <button onclick="switchTab('tab-users')" id="btn-users" class="hidden px-8 py-4 font-black text-slate-500 hover:text-blue-600 transition uppercase">Admin Utilizatori</button>
+        </div>
+
+        <main class="flex-grow p-4 md:p-8">
+            <div id="tab-list" class="tab-content active">
+                <input type="text" id="search-box" onkeyup="filterTable()" placeholder="Caută după nume, serie VIN, telefon..." class="w-full p-4 mb-6 border-2 border-slate-300 rounded-xl shadow-sm outline-none font-semibold focus:border-blue-500 transition">
+                <div class="bg-white rounded-2xl shadow-xl overflow-x-auto border border-slate-200">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-200 text-slate-800 uppercase text-[11px] font-black tracking-widest">
+                            <tr id="table-head-row">
+                                </tr>
+                        </thead>
+                        <tbody id="fise-rows" class="divide-y divide-slate-200 hover:[&>tr]:bg-blue-50 cursor-pointer"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-users" class="tab-content max-w-6xl mx-auto">
+                <h2 class="text-2xl font-black mb-6 text-slate-800 uppercase italic">Gestionare Utilizatori Sistem</h2>
+                <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-800 text-white uppercase text-[11px] font-black tracking-widest">
+                            <tr>
+                                <th class="p-5">Nume Prenume</th>
+                                <th class="p-5">Username</th>
+                                <th class="p-5">Service Asociat</th>
+                                <th class="p-5">Rol</th>
+                                <th class="p-5 text-center">Acțiuni</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-rows" class="divide-y divide-slate-200"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-add" class="tab-content max-w-6xl mx-auto">
+                <div id="edit-indicator" class="hidden bg-amber-100 text-amber-900 p-3 rounded-lg mb-4 font-black text-center border-2 border-amber-400 uppercase text-xs">
+                    Mod EDITARE activ pentru fișa <span id="edit-id-display"></span>. 
+                    <button onclick="cancelEdit()" class="underline ml-4 text-red-700">Renunță / Fișă Nouă</button>
+                </div>
+                <form id="form-fisa-noua" class="bg-white p-8 rounded-2xl shadow-2xl grid grid-cols-1 md:grid-cols-3 gap-8 border border-slate-200">
+                    <input type="hidden" id="edit-fisa-id">
+                    
+                    <div class="space-y-4">
+                        <h3 class="font-black text-blue-700 border-b-2 border-blue-100 pb-2 uppercase text-xs italic tracking-wider">1. Date Client</h3>
+                        <input type="text" id="c-nume" placeholder="Nume Prenume" class="w-full p-3 border-2 border-slate-200 rounded-lg font-semibold" required>
+                        <input type="text" id="c-tel" placeholder="Nr. Telefon" class="w-full p-3 border-2 border-slate-200 rounded-lg font-semibold">
+                        <input type="email" id="c-email" placeholder="Email" class="w-full p-3 border-2 border-slate-200 rounded-lg font-semibold">
+                        <input type="text" id="c-adr" placeholder="Adresa domiciliu" class="w-full p-3 border-2 border-slate-200 rounded-lg font-semibold">
+                        <div>
+                            <label class="text-[10px] font-black text-slate-800 uppercase ml-1">Data Înregistrare (RO)</label>
+                            <input type="datetime-local" id="c-data-auto" class="w-full p-3 border-2 border-slate-200 rounded-lg bg-slate-50 font-bold">
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <h3 class="font-black text-blue-700 border-b-2 border-blue-100 pb-2 uppercase text-xs italic tracking-wider">2. Date Produs</h3>
+                        <div class="space-y-2">
+                            <select id="p-cat" onchange="toggleAltCategorie()" class="w-full p-3 border-2 border-slate-200 rounded-lg text-sm font-black bg-slate-50">
+                                <option value="Bicicleta electrica">Bicicletă Electrică</option>
+                                <option value="Tricicleta electrica">Tricicletă Electrică</option>
+                                <option value="Scuter electric">Scuter Electric</option>
+                                <option value="Cvadraciclu electric">Cvadraciclu Electric</option>
+                                <option value="Alta">Alta (Specificați mai jos)</option>
+                            </select>
+                            <input type="text" id="p-cat-alt" placeholder="Introduceți categoria..." class="hidden <input type="text" id="p-cat-alt" placeholder="Introduceți categoria..." class="hidden w-full p-3 border-2 border-blue-400 rounded-lg font-bold bg-blue-50 text-blue-900">
+                        </div>
+                        <input type="text" id="p-vin" placeholder="Serie VIN" class="w-full p-3 border-2 border-slate-200 rounded-lg font-mono font-black uppercase text-blue-800">
+                        <input type="text" id="p-mod" placeholder="Marcă / Model" class="w-full p-3 border-2 border-slate-200 rounded-lg font-semibold">
+                        <div class="flex gap-2">
+                            <input type="text" id="p-fact" placeholder="Nr. Factură" class="w-1/2 p-3 border-2 border-slate-200 rounded-lg text-xs font-bold">
+                            <input type="date" id="p-dfact" class="w-1/2 p-3 border-2 border-slate-200 rounded-lg text-xs font-bold">
+                        </div>
+                        <select id="p-gar" class="w-full p-3 border-2 border-slate-200 rounded-lg text-sm font-bold">
+                            <option value="In garantie">În Garanție</option>
+                            <option value="Post garantie">Post Garanție</option>
+                        </select>
+                        <input type="text" id="p-obs-produs" placeholder="Observații (Accesorii, starea etc.)" class="w-full p-3 border-2 border-slate-200 rounded-lg text-xs font-semibold">
+                        <div>
+                            <label class="text-[10px] font-black text-slate-800 uppercase ml-1">Data Predării Fizice</label>
+                            <input type="date" id="p-dprel" class="w-full p-3 border-2 border-slate-200 rounded-lg text-sm font-bold">
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <h3 class="font-black text-blue-700 border-b-2 border-blue-100 pb-2 uppercase text-xs italic tracking-wider">3. Reclamație Client</h3>
+                        <textarea id="p-rec" placeholder="Introduceți defectele sesizate..." class="w-full p-3 border-2 border-slate-200 rounded-lg h-48 outline-none font-semibold focus:border-blue-500" required></textarea>
+                        <button type="submit" id="submit-btn" class="w-full bg-blue-600 text-white p-5 rounded-2xl font-black text-lg hover:bg-blue-700 uppercase shadow-lg transition">Salvează Fișa</button>
+                    </div>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <div id="modal-view" class="fixed inset-0 bg-black/90 hidden z-50 overflow-y-auto p-4">
+        <div class="max-w-[210mm] mx-auto mb-4 flex justify-between items-center bg-slate-800 p-4 rounded-xl no-print">
+            <div class="flex gap-2">
+                <button onclick="window.print()" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-black text-xs uppercase shadow-xl hover:bg-blue-500 transition">PRINT / PDF</button>
+                <button id="admin-edit-btn" onclick="startEdit()" class="hidden bg-amber-500 text-white px-4 py-2 rounded-lg font-black text-xs uppercase">Editează Antet</button>
+                <button id="admin-delete-btn" onclick="deleteFisa()" class="hidden bg-red-600 text-white px-4 py-2 rounded-lg font-black text-xs uppercase">Șterge</button>
+            </div>
+            <button onclick="closeModal()" class="bg-slate-700 text-white px-4 py-2 rounded-lg font-black text-xs uppercase">Închide</button>
+        </div>
+        <div id="a4-content" class="a4-page rounded-sm">
+             <div id="v-render-area" class="h-full flex flex-col"></div>
+        </div>
+    </div>
+
+    <script>
+        const SUPA_URL = "https://chsuqecaqhnjqmmuwfhl.supabase.co";
+        const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoc3VxZWNhcWhuanFtbXV3ZmhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDQ4NDMsImV4cCI6MjA4ODAyMDg0M30.CRMlqol-pl3DSBSBvpm04PLkSjE9lja3c1JnKnLrWvs";
+        const _supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+        let activeUser = null;
+        let currentFisa = null;
+
+        function getRoTime() {
+            const now = new Date();
+            const roStr = now.toLocaleString("sv-SE", { timeZone: "Europe/Bucharest" }); 
+            return roStr.substring(0, 16).replace(" ", "T");
+        }
+
+        window.onload = () => {
+            const saved = localStorage.getItem('geeli_session');
+            if (saved) {
+                const creds = JSON.parse(saved);
+                handleLogin(creds.u, creds.p);
+            }
+        };
+
+        function showAuth(type) {
+            document.getElementById('login-form').classList.toggle('hidden', type !== 'login');
+            document.getElementById('reg-form').classList.toggle('hidden', type !== 'reg');
+        }
+
+        async function handleLogin(storedU = null, storedP = null) {
+            const u = storedU || document.getElementById('l-user').value.trim();
+            const p = storedP || document.getElementById('l-pass').value.trim();
+            const remember = document.getElementById('l-remember').checked;
+
+            const { data } = await _supa.from('profiles').select('*').ilike('username', u).eq('password', p).maybeSingle();
+            
+            if (data) {
+                activeUser = data;
+                if (remember) localStorage.setItem('geeli_session', JSON.stringify({u, p}));
+
+                document.getElementById('auth-section').classList.add('hidden');
+                document.getElementById('app-section').classList.remove('hidden');
+                document.getElementById('nav-user-name').innerText = data.nume_complet;
+                document.getElementById('nav-user-info').innerText = `${data.rol} | ${data.service}`;
+                
+                if(data.rol === 'admin') {
+                    document.getElementById('btn-add').classList.remove('hidden');
+                    document.getElementById('btn-users').classList.remove('hidden');
+                }
+                
+                document.getElementById('c-data-auto').value = getRoTime();
+                
+                // Generare capete de tabel
+                const hRow = document.getElementById('table-head-row');
+                hRow.innerHTML = (activeUser.rol === 'admin' ? '<th class="p-5">Nr.Crt.</th>' : '') + `
+                    <th class="p-5">ID Fișă</th>
+                    <th class="p-5">Client / Contact</th>
+                    <th class="p-5">Produs / VIN</th>
+                    <th class="p-5">Vechime</th>
+                    <th class="p-5">Status</th>
+                    <th class="p-5">Service Alocat</th>`;
+                
+                loadFise();
+            } else { 
+                if(!storedU) alert("Date de conectare incorecte!"); 
+                else localStorage.removeItem('geeli_session');
+            }
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('geeli_session');
+            location.reload();
+        }
+
+        async function handleRegister() {
+            const profile = {
+                nume_complet: document.getElementById('r-full').value,
+                username: document.getElementById('r-user').value,
+                password: document.getElementById('r-pass').value,
+                service: document.getElementById('r-service').value,
+                rol: (document.getElementById('r-user').value.toLowerCase().includes('admin')) ? 'admin' : 'user'
+            };
+            await _supa.from('profiles').insert([profile]);
+            showAuth('login');
+        }
+
+        async function loadUsers() {
+            if(activeUser.rol !== 'admin') return;
+            const { data } = await _supa.from('profiles').select('*').order('nume_complet');
+            const body = document.getElementById('users-rows');
+            body.innerHTML = '';
+            data?.forEach(u => {
+                body.innerHTML += `<tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+                    <td class="p-5 font-black text-slate-900">${u.nume_complet}</td>
+                    <td class="p-5 font-mono font-bold text-blue-600">${u.username}</td>
+                    <td class="p-5 text-sm font-bold text-slate-700">${u.service}</td>
+                    <td class="p-5"><span class="px-2 py-1 rounded text-[10px] font-black uppercase ${u.rol==='admin'?'bg-purple-600 text-white':'bg-slate-400 text-white'}">${u.rol}</span></td>
+                    <td class="p-5 text-center">
+                        ${u.username !== activeUser.username ? `<button onclick="deleteUser('${u.username}')" class="bg-red-100 text-red-600 px-3 py-1 rounded-lg font-black text-[10px] hover:bg-red-600 hover:text-white transition">ȘTERGE</button>` : '<span class="text-[10px] italic text-slate-400">Cont Activ</span>'}
+                    </td>
+                </tr>`;
+            });
+        }
+
+        async function deleteUser(username) {
+            if(confirm(`Ești sigur că vrei să ștergi utilizatorul "${username}"?`)) {
+                await _supa.from('profiles').delete().eq('username', username);
+                loadUsers();
+            }
+        }
+
+        async function loadFise() {
+            let q = _supa.from('fise').select('*');
+            if(activeUser.rol !== 'admin') q = q.eq('alocat_catre', activeUser.service);
+            
+            // Pentru a calcula Nr.Crt avem nevoie de date sortate de la vechi la nou
+            const { data } = await q.order('created_at', { ascending: true });
+            if(!data) return;
+
+            // Inversăm pentru afișare (cele mai noi sus), dar păstrăm indexul original
+            const displayData = [...data].reverse();
+            const totalFise = data.length;
+
+            const body = document.getElementById('fise-rows');
+            body.innerHTML = '';
+            
+            displayData.forEach((f) => {
+                // Găsim poziția în array-ul original (sortat ASC) pentru Nr. Crt.
+                const nrCrt = data.findIndex(x => x.id === f.id) + 1;
+                const vch = calcVechime(f.data_preluare_fizica);
+                
+                body.innerHTML += `<tr onclick='openFisa(${JSON.stringify(f)})' class="border-b border-slate-100">
+                    ${activeUser.rol === 'admin' ? `<td class="p-5 font-black text-slate-400 text-xs">#${nrCrt}</td>` : ''}
+                    <td class="p-5 font-mono font-black text-blue-700">${f.id}</td>
+                    <td class="p-5 font-black text-slate-900">${f.nume_client}</td>
+                    <td class="p-5 text-xs font-bold text-slate-800">${f.marca_model}<br><span class="text-blue-600 font-black uppercase">${f.vin_produs}</span></td>
+                    <td class="p-5 text-[11px] font-black ${vch.color}">${vch.text}</td>
+                    <td class="p-5"><span class="px-3 py-1 rounded-full text-[10px] font-black uppercase ${f.status==='Finalizat'?'bg-green-600 text-white':'bg-amber-500 text-white'}">${f.status}</span></td>
+                    <td class="p-5 text-[10px] font-black text-slate-700 italic">${f.alocat_catre}</td>
+                </tr>`;
+            });
+        }
+
+        function calcVechime(dateStr) {
+            if(!dateStr) return { text: "-", color: "text-slate-400" };
+            const diff = Math.floor((new Date() - new Date(dateStr)) / 86400000);
+            return {
+                text: diff <= 14 ? `${diff} ZILE (ÎN TERMEN)` : `${diff} ZILE (DEPĂȘIT)`,
+                color: diff <= 14 ? "text-green-700" : "text-red-700"
+            };
+        }
+
+        function toggleAltCategorie() {
+            const sel = document.getElementById('p-cat').value;
+            const inputAlt = document.getElementById('p-cat-alt');
+            if(sel === 'Alta') {
+                inputAlt.classList.remove('hidden');
+                inputAlt.required = true;
+            } else {
+                inputAlt.classList.add('hidden');
+                inputAlt.required = false;
+                inputAlt.value = '';
+            }
+        }
+
+        document.getElementById('form-fisa-noua').onsubmit = async (e) => {
+            e.preventDefault();
+            const editId = document.getElementById('edit-fisa-id').value;
+            let finalCategorie = document.getElementById('p-cat').value;
+            if(finalCategorie === 'Alta') finalCategorie = document.getElementById('p-cat-alt').value;
+
+            const fisa = {
+                nume_client: document.getElementById('c-nume').value,
+                tel_client: document.getElementById('c-tel').value,
+                email_client: document.getElementById('c-email').value,
+                adresa_client: document.getElementById('c-adr').value,
+                created_at: document.getElementById('c-data-auto').value,
+                categorie: finalCategorie,
+                vin_produs: document.getElementById('p-vin').value,
+                marca_model: document.getElementById('p-mod').value,
+                nr_factura: document.getElementById('p-fact').value,
+                data_factura: document.getElementById('p-dfact').value,
+                tip_garantie: document.getElementById('p-gar').value,
+                obs_produs: document.getElementById('p-obs-produs').value,
+                data_preluare_fizica: document.getElementById('p-dprel').value,
+                reclamatie_client: document.getElementById('p-rec').value
+            };
+
+            if (editId) {
+                await _supa.from('fise').update(fisa).eq('id', editId);
+            } else {
+                const dateStr = new Date().toISOString().slice(2,10).replace(/-/g,'');
+                fisa.id = dateStr + Math.floor(Math.random()*100).toString().padStart(3,'0');
+                fisa.status = 'În lucru';
+                fisa.alocat_catre = 'Nealocat';
+                await _supa.from('fise').insert([fisa]);
+            }
+            cancelEdit(); loadFise(); switchTab('tab-list');
+        };
+
+        function startEdit() {
+            const f = currentFisa;
+            document.getElementById('edit-fisa-id').value = f.id;
+            document.getElementById('edit-id-display').innerText = f.id;
+            document.getElementById('edit-indicator').classList.remove('hidden');
+            document.getElementById('submit-btn').innerText = "Actualizează Fișa";
+            
+            document.getElementById('c-nume').value = f.nume_client;
+            document.getElementById('c-tel').value = f.tel_client || '';
+            document.getElementById('c-email').value = f.email_client || '';
+            document.getElementById('c-adr').value = f.adresa_client || '';
+            document.getElementById('c-data-auto').value = f.created_at?.slice(0,16);
+            
+            const categoriiStandard = ["Bicicleta electrica", "Tricicleta electrica", "Scuter electric", "Cvadraciclu electric"];
+            if (categoriiStandard.includes(f.categorie)) {
+                document.getElementById('p-cat').value = f.categorie;
+                document.getElementById('p-cat-alt').classList.add('hidden');
+            } else {
+                document.getElementById('p-cat').value = 'Alta';
+                document.getElementById('p-cat-alt').classList.remove('hidden');
+                document.getElementById('p-cat-alt').value = f.categorie;
+            }
+
+            document.getElementById('p-vin').value = f.vin_produs;
+            document.getElementById('p-mod').value = f.marca_model;
+            document.getElementById('p-fact').value = f.nr_factura || '';
+            document.getElementById('p-dfact').value = f.data_factura || '';
+            document.getElementById('p-gar').value = f.tip_garantie;
+            document.getElementById('p-obs-produs').value = f.obs_produs || '';
+            document.getElementById('p-dprel').value = f.data_preluare_fizica || '';
+            document.getElementById('p-rec').value = f.reclamatie_client;
+            closeModal(); switchTab('tab-add');
+        }
+
+        function cancelEdit() {
+            document.getElementById('form-fisa-noua').reset();
+            document.getElementById('edit-fisa-id').value = '';
+            document.getElementById('edit-indicator').classList.add('hidden');
+            document.getElementById('p-cat-alt').classList.add('hidden');
+            document.getElementById('submit-btn').innerText = "Salvează Fișa";
+            document.getElementById('c-data-auto').value = getRoTime();
+        }
+
+        async function deleteFisa() {
+            if(confirm("Ești sigur că vrei să ștergi această fișă definitiv?")) {
+                await _supa.from('fise').delete().eq('id', currentFisa.id);
+                closeModal(); loadFise();
+            }
+        }
+
+        function openFisa(f) {
+            currentFisa = f;
+            document.getElementById('modal-view').classList.remove('hidden');
+            document.getElementById('admin-edit-btn').classList.toggle('hidden', activeUser.rol !== 'admin');
+            document.getElementById('admin-delete-btn').classList.toggle('hidden', activeUser.rol !== 'admin');
+            
+            const vch = calcVechime(f.data_preluare_fizica);
+            const canEditReport = (activeUser.rol === 'admin' || (activeUser.service === f.alocat_catre && f.status === 'În lucru'));
+
+            document.getElementById('v-render-area').innerHTML = `
+                <div class="flex-grow">
+                    <div class="mb-1 -mt-4">
+                        <img src="https://i.ibb.co/DfD2pcmk/20260302-184328.png" alt="Antet" class="max-w-[180px] h-auto object-contain">
+                    </div>
+                    <div class="flex justify-between border-b-8 border-slate-900 pb-6 mb-2">
+                        <div>
+                            <h1 class="text-2xl font-black italic tracking-tighter uppercase text-slate-900">Fișă Service</h1>
+                            <p class="font-mono text-lg text-blue-700 font-black">#${f.id}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-black px-6 py-2 rounded text-white uppercase mb-2 text-sm shadow-md ${f.status==='Finalizat'?'bg-green-600':'bg-amber-500'}">${f.status}</p>
+                            <p class="text-[11px] font-black ${vch.color}">${vch.text}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-10 text-[13px] mb-8">
+                        <div class="space-y-2">
+                            <h4 class="font-black border-b-2 border-slate-900 text-slate-900 uppercase text-[11px] pb-1 tracking-widest">1. Date Client</h4>
+                            <p><b class="font-black">NUME:</b> ${f.nume_client}</p>
+                            <p><b class="font-black">TEL:</b> ${f.tel_client || '-'}</p>
+                            <p><b class="font-black">EMAIL:</b> ${f.email_client || '-'}</p>
+                            <p><b class="font-black">ADRESA:</b> ${f.adresa_client || '-'}</p>
+                            <p><b class="font-black">DATA ÎNREGISTRARE:</b> ${f.created_at ? new Date(f.created_at).toLocaleString('ro-RO') : '-'}</p>
+                        </div>
+                        <div class="space-y-2">
+                            <h4 class="font-black border-b-2 border-slate-900 text-slate-900 uppercase text-[11px] pb-1 tracking-widest">2. Date Produs</h4>
+                            <p><b class="font-black">CATEGORIE:</b> ${f.categorie}</p>
+                            <p><b class="font-black">MODEL:</b> ${f.marca_model}</p>
+                            <p><b class="font-black">VIN:</b> <span class="text-blue-700 font-black uppercase font-mono">${f.vin_produs}</span></p>
+                            <p><b class="font-black">FACTURĂ:</b> ${f.nr_factura || '-'} / ${f.data_factura || '-'}</p>
+                            <p><b class="font-black">GARANȚIE:</b> ${f.tip_garantie}</p>
+                            <p><b class="font-black">OBSERVAȚII:</b> ${f.obs_produs || '-'}</p>
+                            <p><b class="font-black text-red-700">DATA PREDĂRII FIZICE:</b> ${f.data_preluare_fizica || '-'}</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-100 p-3 border-2 border-slate-200 italic mb-3 text-[13px] text-slate-900 rounded-lg">
+                        <h4 class="font-black uppercase text-[11px] mb-3 border-b-2 border-slate-300 pb-1">3. Reclamație Client / Defecte Sesizate:</h4>
+                        <div class="font-bold leading-relaxed">${f.reclamatie_client}</div>
+                    </div>
+
+                    <div class="border-t-4 border-slate-900 pt-6">
+                        <h4 class="font-black bg-slate-900 text-white px-4 py-1 text-[11px] inline-block mb-1 uppercase tracking-widest">Raport Tehnic Service</h4>
+                        <div class="grid grid-cols-3 gap-6 text-[12px] font-black mb-6 border-b pb-4 border-slate-100">
+                            <p class="text-slate-700">ALOCAT CĂTRE: <span class="text-blue-700">${f.alocat_catre}</span></p>
+                            <p class="text-slate-700">TEHNICIAN: <span class="text-blue-700">${f.tehnician || '-'}</span></p>
+                            ${f.alocat_catre === 'Propriu' ? `<p class="text-slate-700">KM/ORE: <span class="text-blue-700">${f.km || '-'}/${f.ore || '-'}</span></p>` : `<p class="text-slate-700">COST: <span class="text-blue-700">${f.cost || '-'}</span> | FACTURĂ: <span class="text-blue-700">${f.emitent_factura_service || '-'}</span></p>`}
+                        </div>
+                        <div class="p-6 border-2 border-slate-100 bg-blue-50/30 text-[13px] font-bold text-slate-900 min-h-[180px] whitespace-pre-wrap rounded-xl">${f.raport_reparatie || 'Diagnosticare și lucrare în curs...'}</div>
+                    </div>
+                </div>
+
+                <div class="mt-4 flex justify-between px-10 text-[11px] font-black uppercase text-slate-900">
+                    <div class="text-center">
+                        <p class="mb-4 italic">Semnătură Client</p>
+                        <div class="w-48 border-b-2 border-slate-900 border-dotted mx-auto"></div>
+                    </div>
+                    <div class="text-center">
+                        <p class="mb-4 italic">Reprezentant Service</p>
+                        <div class="w-48 border-b-2 border-slate-900 border-dotted mx-auto"></div>
+                    </div>
+                </div>
+
+                <div class="mt-auto pt-4 text-[12px] leading-tight text-slate-400 italic text-center border-t border-slate-100">
+                    Notă: Datele cu caracter personal din acest document sunt prelucrate în conformitate cu prevederile Regulamentului (UE) 2016/679 (GDPR). Prin semnarea/transmiterea acestui document, vă exprimați acordul pentru prelucrarea datelor în scopul prestării serviciilor.
+                </div>
+
+                <div class="mt-8 no-print pt-6 border-t-2 border-dashed border-slate-300 space-y-4">
+                    ${activeUser.rol === 'admin' ? `
+                        <div class="bg-slate-200 p-5 rounded-2xl flex gap-4 items-center border border-slate-300 shadow-inner">
+                            <span class="text-xs font-black uppercase text-slate-800">Alocare / Status:</span>
+                            <select id="sel-aloca" class="p-2 border-2 border-slate-300 rounded-lg font-black text-xs flex-grow bg-white">
+                                <option value="${f.alocat_catre}">${f.alocat_catre} (Curent)</option>
+                                <option value="Propriu">Service Propriu</option>
+                                <option value="Colaborator 2">Colaborator 2</option>
+                                <option value="Colaborator 3">Colaborator 3</option>
+                                <option value="Colaborator 4">Colaborator 4</option>
+                                <option value="Colaborator 5">Colaborator 5</option>
+                                <option value="Colaborator 6">Colaborator 6</option>
+                                <option value="Colaborator 7">Colaborator 7</option>
+                            </select>
+                            <select id="sel-status-admin" class="p-2 border-2 border-slate-300 rounded-lg font-black text-xs bg-white">
+                                <option value="În lucru" ${f.status==='În lucru'?'selected':''}>În lucru</option>
+                                <option value="Finalizat" ${f.status==='Finalizat'?'selected':''}>Finalizat</option>
+                            </select>
+                            <button onclick="saveAlocare()" class="bg-blue-600 text-white px-6 py-2 rounded-xl font-black text-xs uppercase hover:bg-blue-700 transition shadow-lg">Actualizează</button>
+                        </div>` : ''}
+
+                    ${canEditReport ? `
+                        <div class="bg-blue-700 p-8 rounded-3xl text-white shadow-2xl">
+                            <h4 class="font-black uppercase mb-2 italic tracking-widest text-lg">Raport Tehnic - ${activeUser.rol === 'admin' ? 'MOD ADMIN' : 'MOD SERVICE'}</h4>
+                            <p class="text-[10px] mb-6 opacity-80 uppercase font-bold">Adminul poate edita oricând datele tehnice completate.</p>
+                            <div class="grid grid-cols-3 gap-6 mb-6 text-slate-900">
+                                <input type="text" id="s-teh" value="${f.tehnician || ''}" placeholder="Nume Tehnician" class="p-3 rounded-xl text-sm font-bold border-2 border-blue-300">
+                                ${(f.alocat_catre === 'Propriu' || activeUser.rol === 'admin') ? `
+                                    <input type="text" id="s-km" value="${f.km || ''}" placeholder="Km" class="p-3 rounded-xl text-sm font-bold border-2 border-blue-300">
+                                    <input type="text" id="s-ore" value="${f.ore || ''}" placeholder="Ore" class="p-3 rounded-xl text-sm font-bold border-2 border-blue-300">
+                                ` : ''}
+                                ${(f.alocat_catre !== 'Propriu' || activeUser.rol === 'admin') ? `
+                                    <input type="text" id="s-cost" value="${f.cost || ''}" placeholder="Cost Reparație" class="p-3 rounded-xl text-sm font-bold border-2 border-blue-300">
+                                    <input type="text" id="s-emi" value="${f.emitent_factura_service || ''}" placeholder="Nr. Factură / Serie" class="p-3 rounded-xl text-sm font-bold border-2 border-blue-300">
+                                ` : ''}
+                            </div>
+                            <textarea id="s-rap" placeholder="Descrieți lucrarea..." class="w-full p-4 rounded-2xl text-slate-900 text-sm font-bold mb-6 h-32 border-2 border-blue-300">${f.raport_reparatie || ''}</textarea>
+                            <div class="flex gap-4">
+                                <button onclick="saveRaport(false)" class="flex-grow bg-slate-800 py-4 rounded-2xl font-black uppercase text-xs hover:bg-slate-900 transition border border-white/20">Salvează Ciornă</button>
+                                <button onclick="saveRaport(true)" class="flex-grow bg-green-500 py-4 rounded-2xl font-black uppercase text-xs hover:bg-green-600 transition shadow-xl">Finalizează / Salvează Lucrarea</button>
+                            </div>
+                        </div>` : ''}
+                </div>`;
+        }
+
+        async function saveAlocare() {
+            const dest = document.getElementById('sel-aloca').value;
+            const stat = document.getElementById('sel-status-admin').value;
+            await _supa.from('fise').update({ alocat_catre: dest, status: stat }).eq('id', currentFisa.id);
+            closeModal(); loadFise();
+        }
+
+        async function saveRaport(isFinal) {
+            const upd = {
+                tehnician: document.getElementById('s-teh').value,
+                raport_reparatie: document.getElementById('s-rap').value,
+                status: isFinal ? 'Finalizat' : 'În lucru'
+            };
+            
+            if(document.getElementById('s-km')) upd.km = document.getElementById('s-km').value;
+            if(document.getElementById('s-ore')) upd.ore = document.getElementById('s-ore').value;
+            if(document.getElementById('s-cost')) upd.cost = document.getElementById('s-cost').value;
+            if(document.getElementById('s-emi')) upd.emitent_factura_service = document.getElementById('s-emi').value;
+
+            await _supa.from('fise').update(upd).eq('id', currentFisa.id);
+            closeModal(); loadFise();
+        }
+
+        function switchTab(id) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            document.querySelectorAll('#main-nav button').forEach(b => b.classList.remove('border-b-4', 'border-blue-600', 'text-blue-600', 'text-slate-900'));
+            let btnId = 'btn-list';
+            if(id === 'tab-add') {
+                btnId = 'btn-add';
+                if(!document.getElementById('edit-fisa-id').value) document.getElementById('c-data-auto').value = getRoTime();
+            }
+            if(id === 'tab-users') { btnId = 'btn-users'; loadUsers(); }
+            document.getElementById(btnId).classList.add('border-b-4', 'border-blue-600', 'text-blue-600');
+        }
+
+        function closeModal() { document.getElementById('modal-view').classList.add('hidden'); }
+        function filterTable() {
+            const q = document.getElementById('search-box').value.toLowerCase();
+            document.querySelectorAll('#fise-rows tr').forEach(r => r.style.display = r.innerText.toLowerCase().includes(q) ? '' : 'none');
+        }
+    </script>
+</body>
+</html>
